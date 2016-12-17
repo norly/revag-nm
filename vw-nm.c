@@ -70,7 +70,7 @@ static char* nm_main_to_string(NM_State state)
 		case NM_MAIN_OFF:
 			return "Off";
 		case NM_MAIN_ON:
-			return "On/Ready";
+			return "Ready";
 		case NM_MAIN_LOGIN:
 			return "Login";
 		case NM_MAIN_LIMPHOME:
@@ -101,20 +101,23 @@ static void nm_dump_all(struct NM_Main *nm)
 	unsigned id;
 
 	printf("\n");
-	printf("Current system state:\n");
-	printf("\n");
+	printf(" Node | next | Main      | Sleep\n");
+	printf("----------------------------------------\n");
 
 	for (id = 0; id < nm->max_nodes; id++) {
 		struct NM_Node *node = &nm->nodes[id];
 
 		if (node->state & NM_MAIN_MASK) {
-			printf("Active node %02x:\n", id);
-			printf("  Next:  %02x\n", node->next);
-			printf("  Main:  %s\n", nm_main_to_string(node->state));
-			printf("  Sleep: %s\n", nm_sleep_to_string(node->state));
-			printf("\n");
+			printf("  %02x     %02x    % 9s   %s\n",
+				id,
+				node->next,
+				nm_main_to_string(node->state),
+				nm_sleep_to_string(node->state));
+
 		}
 	}
+
+	printf("\n");
 }
 
 
