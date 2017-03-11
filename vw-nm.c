@@ -136,7 +136,7 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				 * connectivity.
 				 */
 				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+				nm->tv.tv_usec = NM_USECS_LIMP_HOME;
 			}
 			break;
 		case NM_MAIN_LOGIN:
@@ -183,7 +183,7 @@ static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
 static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 {
 	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+	nm->tv.tv_usec = NM_USECS_LIMP_HOME;
 
 	nm_buildframe(nm, frame);
 }
