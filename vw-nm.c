@@ -28,103 +28,180 @@
 
 
 
-
-
-
-
-static int nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
+static int nm_is_rx_frame_valid(struct NM_Main *nm, struct can_frame *frame)
 {
-	NM_ID id;
-	NM_ID next;
-	NM_State state;
-	int its_my_turn = 0;
-
 	if (frame->can_dlc < 2) {
 		printf("Skipping short frame from CAN ID %03x\n", frame->can_id);
 		return 0;
 	}
-
 
 	if ((frame->can_id & ~(nm->max_nodes - 1)) != nm->can_base) {
 		printf("Skipping non-NM from CAN ID %03x\n", frame->can_id);
 		return 0;
 	}
 
-	printf("Received NM frame from CAN ID %03x\n", frame->can_id);
-
-	id = frame->can_id & (nm->max_nodes - 1);
-	next = frame->data[0];
-	state = frame->data[1];
-
-	nm->nodes[id].next = (state & NM_MAIN_MASK) == NM_MAIN_ON
-				? next
-				: 0xff;
-	nm->nodes[id].state = state;
-
-	switch (state & NM_MAIN_MASK) {
-		case NM_MAIN_ON:
-			if (next == nm->my_id) {
-				its_my_turn = 1;
-			}
-			break;
-		case NM_MAIN_LOGIN:
-			if (id == nm->my_id) {
-				break;
-			}
-			printf("Handling LOGIN\n");
-			printf("Testing %x < %x\n", id, nm->nodes[nm->my_id].next);
-			if (id < nm->nodes[nm->my_id].next) {
-				nm->nodes[nm->my_id].next = id;
-			}
-			break;
-	}
-
-	nm_dump_all(nm);
-
-	return its_my_turn;
+	return 1;
 }
 
 
 
 
-static NM_ID nm_my_next_id(struct NM_Main *nm) {
-	unsigned id;
+static void nm_update_my_next_id(struct NM_Main *nm) {
+	unsigned id = nm->my_id;
 
-	if (nm->max_nodes < 2
-		|| (nm->nodes[nm->my_id].state & NM_MAIN_MASK) != NM_MAIN_ON) {
-		assert(0);
-	}
-
-	id = nm->my_id;
 	do {
-		struct NM_Node *node;
+		NM_State state;
 
 		id++;
 		if (id >= nm->max_nodes) {
 			id = 0;
 		}
-		node = &nm->nodes[id];
 
-		if ((node->state & NM_MAIN_MASK) == NM_MAIN_ON) {
-			return id;
+		state = nm->nodes[id].state & NM_MAIN_MASK;
+
+		if (state == NM_MAIN_ON || state == NM_MAIN_LOGIN) {
+			/* TODO: Check for limp home nodes? */
+			nm->nodes[nm->my_id].next = id;
+			break;
 		}
 	} while (id != nm->my_id);
+}
 
-	/* This is never reached */
-	assert(0);
-	return -1;
+
+
+static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
+{
+	NM_ID sender, next;
+	NM_State state;
+
+	/* Is this a valid frame within our logical network? */
+	if (!nm_is_rx_frame_valid(nm, frame)) {
+		return;
+	}
+
+	printf("Received NM frame from CAN ID %03x\n", frame->can_id);
+
+
+	/* Parse sender, its perceived successor, and its state */
+	sender = frame->can_id & (nm->max_nodes - 1);
+	next = frame->data[0];
+	state = frame->data[1];
+
+	/* TODO: Validate state, it needs to be within the enum */
+
+	/* Skip our own frames */
+	if (sender == nm->my_id) {
+		return;
+	}
+
+	nm->nodes[sender].next = next;
+	nm->nodes[sender].state = state;
+
+	switch (state & NM_MAIN_MASK) {
+		case NM_MAIN_ON:
+			if (next == nm->nodes[nm->my_id].next
+				&& nm->nodes[nm->my_id].next != nm->my_id) {
+				/* sender doesn't know we exist */
+
+				nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+
+				nm->tv.tv_sec = 0;
+				nm->tv.tv_usec = 0;
+				/* IMPORTANT: The caller needs to check for
+				 * timeouts first, so no other NM frames are
+				 * received until our correcting login has
+				 * been sent.
+				 */
+			} else if (next == nm->nodes[nm->my_id].next) {
+				/* where nm->nodes[nm->my_id].next == nm->my_id */
+
+				/* TODO: Is this a case we need to handle? */
+
+				/* It can happen when:
+				 *  - our sent frames don't go anywhere
+				 *  - we just logged in and immediately
+				 *    afterwards another ECU sent a regular
+				 *    NM frame without knowing that we exist.
+				 */
+			} else if (next == nm->my_id) {
+				/* It's our turn.
+				 * Reset the timeout so anyone we missed
+				 * can send its login frame to correct us.
+				 */
+				nm->tv.tv_sec = 0;
+				nm->tv.tv_usec = NM_USECS_MY_TURN;
+			} else {
+				/* We just got some random ON message.
+				 * Reset the timer looking out for broken
+				 * connectivity.
+				 */
+				nm->tv.tv_sec = 0;
+				nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+			}
+			break;
+		case NM_MAIN_LOGIN:
+			/* Note: sender != nm->my_id */
+
+			printf("Handling LOGIN\n");
+
+			nm_update_my_next_id(nm);
+
+			/* We're not alone anymore, so let's change state. */
+			nm->nodes[nm->my_id].state = NM_MAIN_ON;
+
+			/* We don't reset the timeout when somebody logs in.
+			 * Instead, we'll simply include them in the next
+			 * round. */
+
+			/* Actually, when a login is done as a correction,
+			 * we do reset the timeout.
+			 *
+			 * TODO.
+			 */
+			break;
+	}
+
+	nm_dump_all(nm);
 }
 
 
 
 
-static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame) {
-	nm->nodes[nm->my_id].next = nm_my_next_id(nm);
 
+
+static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
+{
 	frame->can_id = nm->can_base + nm->my_id;
 	frame->can_dlc = 2;
 	frame->data[0] = nm->nodes[nm->my_id].next;
-	frame->data[1] = NM_MAIN_ON;
+	frame->data[1] = nm->nodes[nm->my_id].state;
+}
+
+
+
+
+static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
+{
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+
+	nm_buildframe(nm, frame);
+}
+
+
+
+
+static void nm_start(struct NM_Main *nm, struct can_frame *frame)
+{
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = 50000;
+
+
+
+	nm->nodes[nm->my_id].next = nm->my_id;
+	nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+
+	nm_buildframe(nm, frame);
 }
 
 
@@ -178,7 +255,6 @@ static int net_init(char *ifname)
 int main(int argc, char **argv)
 {
 	struct NM_Main *nm;
-	struct timeval tv, *next_tv = NULL;
   	fd_set rdfs;
 	int s;
 
@@ -195,26 +271,32 @@ int main(int argc, char **argv)
 
 	s = net_init(argv[1]);
 
+	/* Stir up the hornet's nest */
+	if (1) {
+		struct can_frame frame;
+
+		nm_start(nm, &frame);
+		can_tx(s, &frame);
+	}
+
 	while (1) {
 		int retval;
 
 		FD_ZERO(&rdfs);
 		FD_SET(s, &rdfs);
 
-		retval = select(s+1, &rdfs, NULL, NULL, next_tv);
+		retval = select(s+1, &rdfs, NULL, NULL, &nm->tv);
 		/* We currently rely on Linux timeout behavior here,
 		 * i.e. the timeout now reflects the remaining time */
 		if (retval < 0) {
 			perror("select");
 			return 1;
 		} else if (!retval) {
-			/* Timeout */
+			/* Timeout, we NEED to check this first */
 			struct can_frame frame;
 
 			nm_timeout_callback(nm, &frame);
 			can_tx(s, &frame);
-
-			next_tv = NULL;
 		} else if (FD_ISSET(s, &rdfs)) {
 			struct can_frame frame;
 			ssize_t ret;
@@ -225,11 +307,7 @@ int main(int argc, char **argv)
 				return 1;
 			}
 
-			if (nm_handle_can_frame(nm, &frame)) {
-				tv.tv_sec = 0;
-				tv.tv_usec = 400000;
-				next_tv = &tv;
-			}
+			nm_handle_can_frame(nm, &frame);
 			continue;
 		}
 	}
