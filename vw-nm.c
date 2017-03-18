@@ -45,6 +45,32 @@ static int nm_is_rx_frame_valid(struct NM_Main *nm, struct can_frame *frame)
 
 
 
+static void nm_set_timer_now(struct NM_Main *nm) {
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = 0;
+	nm->timer_reason = NM_TIMER_NOW;
+}
+
+static void nm_set_timer_normal(struct NM_Main *nm) {
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = NM_USECS_NORMAL_TURN;
+	nm->timer_reason = NM_TIMER_NORMAL;
+}
+
+static void nm_set_timer_awol(struct NM_Main *nm) {
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
+	nm->timer_reason = NM_TIMER_AWOL;
+}
+
+/*
+static void nm_set_timer_limphome(struct NM_Main *nm) {
+	nm->tv.tv_sec = 0;
+	nm->tv.tv_usec = NM_USECS_LIMPHOME;
+	nm->timer_reason = NM_TIMER_LIMPHOME;
+}
+*/
+
 
 static void nm_update_my_next_id(struct NM_Main *nm) {
 	unsigned id = nm->my_id;
@@ -114,8 +140,8 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 
 				nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
 
-				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = 0;
+				nm_set_timer_now(nm);
+
 				/* IMPORTANT: The caller needs to check for
 				 * timeouts first, i.e. no other NM frames
 				 * are received until our correcting login
@@ -143,15 +169,13 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				 * Reset the timeout so anyone we missed
 				 * can send its login frame to correct us.
 				 */
-				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_NORMAL_TURN;
+				nm_set_timer_normal(nm);
 			} else {
 				/* We just got some random ON message.
 				 * Reset the timer looking out for broken
 				 * connectivity.
 				 */
-				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_NODE_AWOL;
+				nm_set_timer_awol(nm);
 			}
 			break;
 		case NM_MAIN_LOGIN:
@@ -171,8 +195,7 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			 * we do reset the timeout.
 			 */
 			if (next != sender) {
-				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_NODE_AWOL;
+				nm_set_timer_awol(nm);
 			}
 			break;
 		case NM_MAIN_LIMPHOME:
@@ -200,8 +223,7 @@ static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
 
 static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 {
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
+	nm_set_timer_awol(nm);
 
 	nm_buildframe(nm, frame);
 }

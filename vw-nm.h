@@ -27,12 +27,22 @@ struct NM_Node {
 	NM_State state;
 };
 
+
+enum timer_reason {
+	NM_TIMER_NOW,
+	NM_TIMER_NORMAL,
+	NM_TIMER_AWOL,
+	NM_TIMER_LIMPHOME,
+};
+
 struct NM_Main {
 	unsigned max_nodes;
 	struct NM_Node *nodes;
 	NM_ID my_id;
 	canid_t can_base;
+
 	struct timeval tv;
+	enum timer_reason timer_reason;
 };
 
 
@@ -61,7 +71,7 @@ struct NM_Main {
 /* This timeout is 500 ms in:
  *  - 0x19 (RCD 310, Bosch)
  */
-#define NM_USECS_LIMP_HOME 500000
+#define NM_USECS_LIMPHOME 500000
 
 
 #endif /* __VW_NM_H__ */
