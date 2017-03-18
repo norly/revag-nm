@@ -144,7 +144,7 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				 * can send its login frame to correct us.
 				 */
 				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_MY_TURN;
+				nm->tv.tv_usec = NM_USECS_NORMAL_TURN;
 			} else {
 				/* We just got some random ON message.
 				 * Reset the timer looking out for broken

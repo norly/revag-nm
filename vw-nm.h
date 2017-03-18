@@ -49,7 +49,7 @@ struct NM_Main {
  *
  * We may reduce it since we're not on a real-time OS.
  */
-#define NM_USECS_MY_TURN 45000
+#define NM_USECS_NORMAL_TURN 45000
 
 
 /* This timeout is 140 ms in:
