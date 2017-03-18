@@ -212,7 +212,7 @@ static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 static void nm_start(struct NM_Main *nm, struct can_frame *frame)
 {
 	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = 50000;
+	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
 
 
 
@@ -275,13 +275,16 @@ int main(int argc, char **argv)
 	struct NM_Main *nm;
   	fd_set rdfs;
 	int s;
+	NM_ID my_id;
 
-	if (argc != 2) {
-		printf("syntax: %s IFNAME\n", argv[0]);
+	if (argc != 3) {
+		printf("syntax: %s IFNAME MY_ID\n", argv[0]);
 		return 1;
 	}
 
-	nm = nm_alloc(5, 0x0b, 0x420);
+	my_id = strtoul(argv[2], NULL, 0);
+
+	nm = nm_alloc(5, my_id, 0x420);
 	if (!nm) {
 		printf("Out of memory allocating NM struct.\n");
 		return 1;
@@ -331,6 +334,7 @@ int main(int argc, char **argv)
 	}
 
 	nm_free(nm);
+	close(s);
 
 	return 0;
 }
