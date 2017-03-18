@@ -38,6 +38,7 @@ enum timer_reason {
 struct NM_Main {
 	unsigned max_nodes;
 	struct NM_Node *nodes;
+
 	NM_ID my_id;
 	canid_t can_base;
 
@@ -48,7 +49,9 @@ struct NM_Main {
 
 
 
-/* This timeout is ~49 ms in:
+/* OSEK/VDX NM: T_Typ
+ *
+ * This timeout is ~49 ms in:
  *  - 0x19 (RCD 310, Bosch)
  *    (sometimes it takes a little longer)
  *
@@ -62,13 +65,17 @@ struct NM_Main {
 #define NM_USECS_NORMAL_TURN 45000
 
 
-/* This timeout is 140 ms in:
+/* OSEK/VDX NM: T_Max
+ *
+ * This timeout is 140 ms in:
  *  - 0x19 (RCD 310, Bosch)
  */
 #define NM_USECS_NODE_AWOL 140000
 
 
-/* This timeout is 500 ms in:
+/* OSEK/VDX NM: T_Error
+ *
+ * This timeout is 500 ms in:
  *  - 0x19 (RCD 310, Bosch)
  */
 #define NM_USECS_LIMPHOME 500000

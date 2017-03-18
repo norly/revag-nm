@@ -28,48 +28,6 @@
 
 
 
-static int nm_is_rx_frame_valid(struct NM_Main *nm, struct can_frame *frame)
-{
-	if (frame->can_dlc < 2) {
-		printf("Skipping short frame from CAN ID %03x\n", frame->can_id);
-		return 0;
-	}
-
-	if ((frame->can_id & ~(nm->max_nodes - 1)) != nm->can_base) {
-		printf("Skipping non-NM from CAN ID %03x\n", frame->can_id);
-		return 0;
-	}
-
-	return 1;
-}
-
-
-
-static void nm_set_timer_now(struct NM_Main *nm) {
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = 0;
-	nm->timer_reason = NM_TIMER_NOW;
-}
-
-static void nm_set_timer_normal(struct NM_Main *nm) {
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_NORMAL_TURN;
-	nm->timer_reason = NM_TIMER_NORMAL;
-}
-
-static void nm_set_timer_awol(struct NM_Main *nm) {
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
-	nm->timer_reason = NM_TIMER_AWOL;
-}
-
-/*
-static void nm_set_timer_limphome(struct NM_Main *nm) {
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_LIMPHOME;
-	nm->timer_reason = NM_TIMER_LIMPHOME;
-}
-*/
 
 
 static void nm_update_my_next_id(struct NM_Main *nm) {
@@ -132,11 +90,23 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 	nm->nodes[sender].next = next;
 	nm->nodes[sender].state = state;
 
+	/* Update our view of the world */
+	nm_update_my_next_id(nm);
+
 	switch (state & NM_MAIN_MASK) {
 		case NM_MAIN_ON:
+			/* We're not alone, so let's transition to ON for now.
+			 */
+			nm->nodes[nm->my_id].state = NM_MAIN_ON;
+
+			/* The AWOL timeout is ONLY reset on
+			 * NM_MAIN_ON messages.
+			 */
+			nm_set_timer_awol(nm);
+
 			if (next == nm->nodes[nm->my_id].next
 				&& nm->nodes[nm->my_id].next != nm->my_id) {
-				/* sender doesn't know we exist */
+				/* Sender doesn't know we exist */
 
 				nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
 
@@ -157,49 +127,35 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				 *    NM frame.
 				 */
 
-				/* Let's handle this just like a LOGIN, since
-				 * we're learning about a new device.
-				 * See case NM_MAIN_LOGIN below for details.
+				/* Nothing to do. */
+			} else if (next == nm->my_id) {
+				/* It's our turn, do a normal timeout.
+				 * This is a period in which anyone we missed
+				 * can send its re-login frame to correct us.
 				 */
 
-				nm_update_my_next_id(nm);
-				nm->nodes[nm->my_id].state = NM_MAIN_ON;
-			} else if (next == nm->my_id) {
-				/* It's our turn.
-				 * Reset the timeout so anyone we missed
-				 * can send its login frame to correct us.
-				 */
 				nm_set_timer_normal(nm);
 			} else {
-				/* We just got some random ON message.
-				 * Reset the timer looking out for broken
-				 * connectivity.
-				 */
-				nm_set_timer_awol(nm);
+				/* We just received a random ON message. */
+
+				/* Nothing to do. */
 			}
 			break;
 		case NM_MAIN_LOGIN:
 			/* Note: sender != nm->my_id */
 
-			nm_update_my_next_id(nm);
-
 			/* We're not alone anymore, so let's change state. */
 			nm->nodes[nm->my_id].state = NM_MAIN_ON;
 
-			/* We don't reset the timeout when somebody logs in,
-			 * i.e. (next == sender).
+			/* We don't reset the timeout when somebody logs in.
 			 * Instead, we'll simply include them in the next
-			 * round. */
-
-			/* Actually, when a login is done as a correction,
-			 * we do reset the timeout.
+			 * round.
 			 */
-			if (next != sender) {
-				nm_set_timer_awol(nm);
-			}
+
+			/* Nothing else to do. */
 			break;
 		case NM_MAIN_LIMPHOME:
-			nm_update_my_next_id(nm);
+			break;
 	}
 
 	nm_dump_all(nm);
@@ -223,23 +179,37 @@ static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
 
 static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 {
-	nm_set_timer_awol(nm);
-
-	nm_buildframe(nm, frame);
-}
-
-
-
-
-static void nm_start(struct NM_Main *nm, struct can_frame *frame)
-{
-	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
-
-
-
-	nm->nodes[nm->my_id].next = nm->my_id;
-	nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+	switch(nm->timer_reason) {
+		case NM_TIMER_NOW:
+		case NM_TIMER_NORMAL:
+			/* We're due to send our own ring message */
+			switch(nm->nodes[nm->my_id].state & NM_MAIN_MASK) {
+				case NM_MAIN_ON:
+					break;
+				case NM_MAIN_LOGIN:
+					/* We're going to be ready, let's
+					 * change state (RCD 310 behavior)
+					 */
+					nm->nodes[nm->my_id].state = NM_MAIN_ON;
+					break;
+				default:
+					printf("BUG: TIMER_NORMAL expired in unknown NM_MAIN state\n");
+					break;
+			}
+			nm_set_timer_awol(nm);
+			nm_buildframe(nm, frame);
+			break;
+		case NM_TIMER_AWOL:
+			/* The network is silent because a node disappeared
+			 * or something bad happened.
+			 * Reset everything and start over.
+			 */
+			nm_reset(nm);
+			break;
+		case NM_TIMER_LIMPHOME:
+			/* TODO */
+			break;
+	}
 
 	nm_buildframe(nm, frame);
 }
@@ -318,7 +288,7 @@ int main(int argc, char **argv)
 	if (1) {
 		struct can_frame frame;
 
-		nm_start(nm, &frame);
+		nm_buildframe(nm, &frame);
 		can_tx(s, &frame);
 	}
 
