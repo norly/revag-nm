@@ -65,6 +65,15 @@ static void nm_update_my_next_id(struct NM_Main *nm) {
 			break;
 		}
 	} while (id != nm->my_id);
+
+	if (nm->nodes[nm->my_id].next == nm->my_id) {
+		/* Uh oh, we're the only one left. */
+
+		/* TODO */
+		nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+
+		/* TODO: Timeout 140ms (RCD 310) */
+	}
 }
 
 
@@ -142,7 +151,7 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				 * connectivity.
 				 */
 				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+				nm->tv.tv_usec = NM_USECS_NODE_AWOL;
 			}
 			break;
 		case NM_MAIN_LOGIN:
@@ -163,9 +172,11 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			 */
 			if (next != sender) {
 				nm->tv.tv_sec = 0;
-				nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+				nm->tv.tv_usec = NM_USECS_NODE_AWOL;
 			}
 			break;
+		case NM_MAIN_LIMPHOME:
+			nm_update_my_next_id(nm);
 	}
 
 	nm_dump_all(nm);
@@ -190,7 +201,7 @@ static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
 static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 {
 	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
 
 	nm_buildframe(nm, frame);
 }

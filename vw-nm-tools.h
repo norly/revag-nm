@@ -104,7 +104,7 @@ static struct NM_Main* nm_alloc(unsigned node_bits, NM_ID my_id, canid_t can_bas
 	nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
 
 	nm->tv.tv_sec = 0;
-	nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+	nm->tv.tv_usec = NM_USECS_NODE_AWOL;
 
 	return nm;
 }

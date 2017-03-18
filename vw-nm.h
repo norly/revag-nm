@@ -49,13 +49,13 @@ struct NM_Main {
  *
  * We may reduce it since we're not on a real-time OS.
  */
-#define NM_USECS_MY_TURN 40000
+#define NM_USECS_MY_TURN 45000
 
 
-/* This timeout is 50 ms in:
+/* This timeout is 140 ms in:
  *  - 0x19 (RCD 310, Bosch)
  */
-#define NM_USECS_OTHER_TURN 50000
+#define NM_USECS_NODE_AWOL 140000
 
 
 /* This timeout is 500 ms in:
