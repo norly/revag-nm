@@ -115,14 +115,20 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			} else if (next == nm->nodes[nm->my_id].next) {
 				/* where nm->nodes[nm->my_id].next == nm->my_id */
 
-				/* TODO: Is this a case we need to handle? */
-
 				/* It can happen when:
 				 *  - our sent frames don't go anywhere
 				 *  - we just logged in and immediately
 				 *    afterwards another ECU sent a regular
-				 *    NM frame without knowing that we exist.
+				 *    NM frame.
 				 */
+
+				/* Let's handle this just like a LOGIN, since
+				 * we're learning about a new device.
+				 * See case NM_MAIN_LOGIN below for details.
+				 */
+
+				nm_update_my_next_id(nm);
+				nm->nodes[nm->my_id].state = NM_MAIN_ON;
 			} else if (next == nm->my_id) {
 				/* It's our turn.
 				 * Reset the timeout so anyone we missed
@@ -141,8 +147,6 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			break;
 		case NM_MAIN_LOGIN:
 			/* Note: sender != nm->my_id */
-
-			printf("Handling LOGIN\n");
 
 			nm_update_my_next_id(nm);
 
