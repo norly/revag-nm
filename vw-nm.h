@@ -40,6 +40,7 @@ struct NM_Main {
 
 /* This timeout is ~49 ms in:
  *  - 0x19 (RCD 310, Bosch)
+ *    (sometimes it takes a little longer)
  *
  * and ~45ms in:
  *  - 0x0b Instrument cluster?

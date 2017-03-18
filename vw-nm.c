@@ -60,7 +60,7 @@ static void nm_update_my_next_id(struct NM_Main *nm) {
 		state = nm->nodes[id].state & NM_MAIN_MASK;
 
 		if (state == NM_MAIN_ON || state == NM_MAIN_LOGIN) {
-			/* TODO: Check for limp home nodes? */
+			/* We skip limp home nodes */
 			nm->nodes[nm->my_id].next = id;
 			break;
 		}
@@ -108,12 +108,12 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 				nm->tv.tv_sec = 0;
 				nm->tv.tv_usec = 0;
 				/* IMPORTANT: The caller needs to check for
-				 * timeouts first, so no other NM frames are
-				 * received until our correcting login has
-				 * been sent.
+				 * timeouts first, i.e. no other NM frames
+				 * are received until our correcting login
+				 * has been sent.
 				 */
 			} else if (next == nm->nodes[nm->my_id].next) {
-				/* where nm->nodes[nm->my_id].next == nm->my_id */
+				/* where (nm->nodes[nm->my_id].next == nm->my_id) */
 
 				/* It can happen when:
 				 *  - our sent frames don't go anywhere
@@ -153,15 +153,18 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			/* We're not alone anymore, so let's change state. */
 			nm->nodes[nm->my_id].state = NM_MAIN_ON;
 
-			/* We don't reset the timeout when somebody logs in.
+			/* We don't reset the timeout when somebody logs in,
+			 * i.e. (next == sender).
 			 * Instead, we'll simply include them in the next
 			 * round. */
 
 			/* Actually, when a login is done as a correction,
 			 * we do reset the timeout.
-			 *
-			 * TODO.
 			 */
+			if (next != sender) {
+				nm->tv.tv_sec = 0;
+				nm->tv.tv_usec = NM_USECS_OTHER_TURN;
+			}
 			break;
 	}
 
