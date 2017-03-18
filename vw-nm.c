@@ -49,15 +49,6 @@ static void nm_update_my_next_id(struct NM_Main *nm) {
 			break;
 		}
 	} while (id != nm->my_id);
-
-	if (nm->nodes[nm->my_id].next == nm->my_id) {
-		/* Uh oh, we're the only one left. */
-
-		/* TODO */
-		nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
-
-		/* TODO: Timeout 140ms (RCD 310) */
-	}
 }
 
 

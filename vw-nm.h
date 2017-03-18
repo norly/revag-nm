@@ -51,18 +51,15 @@ struct NM_Main {
 
 /* OSEK/VDX NM: T_Typ
  *
- * This timeout is ~49 ms in:
+ * This timeout is ~50 ms in:
  *  - 0x19 (RCD 310, Bosch)
- *    (sometimes it takes a little longer)
  *
  * and ~45ms in:
  *  - 0x0b Instrument cluster?
  *  - 0x15 MDI
  *  - 0x1A Phone
- *
- * We may reduce it since we're not on a real-time OS.
  */
-#define NM_USECS_NORMAL_TURN 45000
+#define NM_USECS_NORMAL_TURN 50000
 
 
 /* OSEK/VDX NM: T_Max
