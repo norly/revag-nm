@@ -121,14 +121,12 @@ static void nm_set_timer_awol(struct NM_Main *nm)
 	nm->timer_reason = NM_TIMER_AWOL;
 }
 
-/*
 static void nm_set_timer_limphome(struct NM_Main *nm)
 {
 	nm->tv.tv_sec = 0;
 	nm->tv.tv_usec = NM_USECS_LIMPHOME;
 	nm->timer_reason = NM_TIMER_LIMPHOME;
 }
-*/
 
 
 
@@ -147,7 +145,7 @@ static void nm_reset(struct NM_Main *nm)
 	nm->nodes[nm->my_id].next = nm->my_id;
 	nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
 
-	nm_set_timer_normal(nm);
+	nm_set_timer_now(nm);
 }
 
 

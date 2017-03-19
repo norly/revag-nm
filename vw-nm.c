@@ -78,6 +78,14 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 		return;
 	}
 
+	/* If we're currently stuck in Limp Home mode, and we can see
+	 * someone else's messages, reset and re-login.
+	 */
+	if (nm->nodes[nm->my_id].state == NM_MAIN_LIMPHOME) {
+		nm_reset(nm);
+		return;
+	}
+
 	nm->nodes[sender].next = next;
 	nm->nodes[sender].state = state;
 
@@ -146,6 +154,7 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			/* Nothing else to do. */
 			break;
 		case NM_MAIN_LIMPHOME:
+			/* Nothing we can do. Poor guy. */
 			break;
 	}
 
@@ -170,25 +179,28 @@ static void nm_buildframe(struct NM_Main *nm, struct can_frame *frame)
 
 static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 {
+	nm_buildframe(nm, frame);
+
 	switch(nm->timer_reason) {
 		case NM_TIMER_NOW:
+			/* We're due to log in */
+
+			/* We're going to be ready, let's
+			 * change state (RCD 310 behavior)
+			 */
+			nm->nodes[nm->my_id].state = NM_MAIN_ON;
+			nm_set_timer_normal(nm);
+			break;
 		case NM_TIMER_NORMAL:
 			/* We're due to send our own ring message */
 			switch(nm->nodes[nm->my_id].state & NM_MAIN_MASK) {
 				case NM_MAIN_ON:
 					break;
-				case NM_MAIN_LOGIN:
-					/* We're going to be ready, let's
-					 * change state (RCD 310 behavior)
-					 */
-					nm->nodes[nm->my_id].state = NM_MAIN_ON;
-					break;
 				default:
-					printf("BUG: TIMER_NORMAL expired in unknown NM_MAIN state\n");
+					printf("BUG: TIMER_NORMAL expired in non-ON state\n");
 					break;
 			}
 			nm_set_timer_awol(nm);
-			nm_buildframe(nm, frame);
 			break;
 		case NM_TIMER_AWOL:
 			/* The network is silent because a node disappeared
@@ -198,11 +210,9 @@ static void nm_timeout_callback(struct NM_Main *nm, struct can_frame *frame)
 			nm_reset(nm);
 			break;
 		case NM_TIMER_LIMPHOME:
-			/* TODO */
+			nm_set_timer_limphome(nm);
 			break;
 	}
-
-	nm_buildframe(nm, frame);
 }
 
 
@@ -274,14 +284,6 @@ int main(int argc, char **argv)
 	}
 
 	s = net_init(argv[1]);
-
-	/* Stir up the hornet's nest */
-	if (1) {
-		struct can_frame frame;
-
-		nm_buildframe(nm, &frame);
-		can_tx(s, &frame);
-	}
 
 	while (1) {
 		int retval;
