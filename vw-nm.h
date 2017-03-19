@@ -44,6 +44,9 @@ struct NM_Main {
 
 	struct timeval tv;
 	enum timer_reason timer_reason;
+
+	/* How many times have we been alone when we reset? */
+	int lonely_resets;
 };
 
 

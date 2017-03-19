@@ -137,16 +137,35 @@ static void nm_reset(struct NM_Main *nm)
 {
 	unsigned id;
 
+	if (nm->nodes[nm->my_id].next == nm->my_id) {
+		nm->lonely_resets++;
+	}
+
 	for (id = 0; id < nm->max_nodes; id++) {
 		nm->nodes[id].next = 0xff;
 		nm->nodes[id].state = NM_MAIN_OFF;
 	}
 
 	nm->nodes[nm->my_id].next = nm->my_id;
-	nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+	if (nm->lonely_resets >= 5) {
+		printf("Limp home detected :(\n");
 
-	nm_set_timer_now(nm);
+		nm->nodes[nm->my_id].state = NM_MAIN_LIMPHOME;
+		nm_set_timer_limphome(nm);
+	} else {
+		nm->nodes[nm->my_id].state = NM_MAIN_LOGIN;
+		nm_set_timer_now(nm);
+	}
 }
+
+
+static void nm_initreset(struct NM_Main *nm)
+{
+	nm_reset(nm);
+
+	nm->lonely_resets = 0;
+}
+
 
 
 
@@ -173,7 +192,7 @@ static struct NM_Main* nm_alloc(unsigned node_bits, NM_ID my_id, canid_t can_bas
 	nm->my_id = my_id;
 	nm->can_base = can_base;
 
-	nm_reset(nm);
+	nm_initreset(nm);
 
 	return nm;
 }
