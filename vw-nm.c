@@ -81,7 +81,8 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 	/* If we're currently stuck in Limp Home mode, and we can see
 	 * someone else's messages: reset counters, reset NM, re-login.
 	 */
-	if (nm->nodes[nm->my_id].state == NM_MAIN_LIMPHOME) {
+	if ((nm->nodes[nm->my_id].state & NM_MAIN_MASK)
+		== NM_MAIN_LIMPHOME) {
 		nm_initreset(nm);
 		return;
 	}
