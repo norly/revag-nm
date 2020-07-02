@@ -1,3 +1,3 @@
 CFLAGS += -Wall -g
 
-vw-nm:
+revag-nm:

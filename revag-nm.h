@@ -1,5 +1,5 @@
-#ifndef __VW_NM_H__
-#define __VW_NM_H__
+#ifndef __REVAG_NM_H__
+#define __REVAG_NM_H__
 
 #include <sys/time.h>
 
@@ -81,4 +81,4 @@ struct NM_Main {
 #define NM_USECS_LIMPHOME 500000
 
 
-#endif /* __VW_NM_H__ */
+#endif /* __REVAG_NM_H__ */
