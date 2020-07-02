@@ -30,7 +30,8 @@
 
 
 
-static void nm_update_my_next_id(struct NM_Main *nm) {
+static void nm_update_my_next_id(struct NM_Main *nm)
+{
 	unsigned id = nm->my_id;
 
 	do {
@@ -49,6 +50,28 @@ static void nm_update_my_next_id(struct NM_Main *nm) {
 			break;
 		}
 	} while (id != nm->my_id);
+}
+
+
+
+
+static unsigned nm_num_active_nodes(struct NM_Main *nm)
+{
+	unsigned id = 0;
+	unsigned active = 0;
+
+	for (id = 0; id < nm->max_nodes; id++) {
+		NM_State state;
+
+		state = nm->nodes[id].state & NM_MAIN_MASK;
+
+		if (state == NM_MAIN_ON || state == NM_MAIN_LOGIN) {
+			/* We skip limp home nodes */
+			active++;
+		}
+	}
+
+	return active;
 }
 
 
@@ -151,6 +174,15 @@ static void nm_handle_can_frame(struct NM_Main *nm, struct can_frame *frame)
 			 * Instead, we'll simply include them in the next
 			 * round.
 			 */
+
+			/* HACK:
+			 * Special case: The Media-In's NM implementation
+			 * doesn't auto-switch to NM_ON. Let's say hello,
+			 * even if it ends up being a little late.
+			 */
+			if (nm_num_active_nodes(nm) >= 2) {
+				nm_set_timer_normal(nm);
+			}
 
 			/* Nothing else to do. */
 			break;
